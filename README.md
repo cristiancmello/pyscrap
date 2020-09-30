@@ -9,6 +9,16 @@ Python Web Scraping Environment and Examples
 conda env create --file environment.yml
 ```
 
+### Activation/Deactivation
+
+```bash
+# for activation
+conda activate pyscrapenv
+
+# for deactivation
+conda deactivate
+```
+
 ### Update Packages and configurations
 
 ```bash
