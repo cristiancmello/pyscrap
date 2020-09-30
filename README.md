@@ -1,6 +1,10 @@
 # pyscrap
 Python Web Scraping Environment and Examples
 
+## Requirements
+
+* Mozilla Firefox 81.0 or above
+
 ## Setup
 
 ### X Server
