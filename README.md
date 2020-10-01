@@ -1,6 +1,8 @@
 # pyscrap
 Python Web Scraping Environment and Examples
 
+[![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod)](https://github.com/cristiancmello/pyscrap)
+
 ## Requirements
 
 * Mozilla Firefox 81.0 or above
