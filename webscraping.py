@@ -20,6 +20,11 @@ rankings = {
   'blocks': {'field': 'BLK', 'label': 'BLK'},
 }
 
+def acceptTerms():
+    acceptBt = driver.find_element_by_id('onetrust-accept-btn-handler')
+    acceptBt.click()
+    return
+
 def buildrank(type):
   field = rankings[type]['field']
   label = rankings[type]['label']
@@ -39,18 +44,14 @@ def buildrank(type):
   return df.to_dict('records')
 
 option = Options()
-option.headless = True
-binary = FirefoxBinary('/usr/bin/firefox')
-driver = webdriver.Firefox()
+option.headless = False
+driver = webdriver.Firefox(options=option)
 
 driver.get(url)
 driver.implicitly_wait(10)  # in seconds
 
-driver.find_element_by_xpath("//div//div[@class='banner-actions-container']//button").click()
-time.sleep(1)
-
-top10ranking = {}
-top10ranking['points'] = buildrank('points')
+acceptTerms()
+driver.implicitly_wait(10)  # in seconds
 
 for k in rankings:
   top10ranking[k] = buildrank(k)
