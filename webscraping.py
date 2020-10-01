@@ -21,9 +21,9 @@ rankings = {
 }
 
 def acceptTerms():
+    # acceptBt = driver.find_element_by_xpath("//div//div[@class='banner-actions-container']//button")
     acceptBt = driver.find_element_by_id('onetrust-accept-btn-handler')
     acceptBt.click()
-    return
 
 def buildrank(type):
   field = rankings[type]['field']
@@ -51,7 +51,7 @@ driver.get(url)
 driver.implicitly_wait(10)  # in seconds
 
 acceptTerms()
-driver.implicitly_wait(10)  # in seconds
+time.sleep(10)
 
 for k in rankings:
   top10ranking[k] = buildrank(k)
