@@ -14,11 +14,22 @@ from random import choice
 from selenium import webdriver
 from fake_useragent import UserAgent
 
-uc.TARGET_VERSION = 85
-uc.install()
+def chromeInit():
+  uc.TARGET_VERSION = 85
+  uc.install()
 
-from selenium.webdriver import Chrome
-from selenium.webdriver import Chrome, ChromeOptions
+  from selenium.webdriver import Chrome
+  from selenium.webdriver import Chrome, ChromeOptions
+
+  opts = ChromeOptions()
+  opts.add_argument('--no-sandbox')
+  opts.add_argument('--disable-dev-shm-usage')
+  opts.headless = False
+
+  driver = Chrome(options=opts)
+  return driver
+
+driver = chromeInit()
 
 def createDataFolder():
   folderName = 'data'
@@ -31,36 +42,31 @@ def saveSearchToFile(name, searchResult):
     js = json.dumps(searchResult, indent=2)
     fp.write(js)
 
+def saveLog(name, data):
+  filename = f'data/{name}.log'
+  with open(filename, 'w', encoding='utf-8') as fp:
+    fp.write(data)
+
+def random_headers():
+  headers = {
+    'User-Agent': UserAgent().random,
+    'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'upgrade-insecure-requests': '1',
+    'sec-fetch-user': '?1',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-dest': 'document'
+  }
+
+  return headers
+
 def fiverrApiSearchOmnibox(term, pro):
   r = requests.get(f'https://www.fiverr.com/search/layout/omnibox?callback=autocompleteCallback&from_medusa_header=true&pro_only={pro}&query={term}')
+  saveLog('search_omnibox', r.text)
   return r.json()
-
-desktop_agents = ['Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
-                 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
-                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
-                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/602.2.14 (KHTML, like Gecko) Version/10.0.1 Safari/602.2.14',
-                 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36',
-                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36',
-                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36',
-                 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36',
-                 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36',
-                 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0']
- 
-def random_headers():
-    headers = {
-      'User-Agent': UserAgent().random,
-      'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'upgrade-insecure-requests': '0',
-      'sec-fetch-user': '?1',
-      'sec-fetch-mode': 'navigate',
-      'sec-fetch-dest': 'document'
-    }
-
-    return headers
 
 def fiverrApiSearchRecommendation(term):
   r = requests.get(f'https://www.fiverr.com/recommendations/related_search_terms?search_term={term}', headers=random_headers())
-
+  saveLog('search_recommendation', r.text)
   return r.json()
 
 def getSearchMetadata():
@@ -104,47 +110,83 @@ def getCompetitionNumber(term):
   driver.get(f'https://www.fiverr.com/search/gigs?query={term}&source=top-bar&search_in=everywhere&search-autocomplete-original-term={term}')
   numberOfResultsElement = driver.find_element_by_xpath("//div[@class='number-of-results']")
 
+  # Example: 12,123 Services => 12 and 123
   html_content = numberOfResultsElement.get_attribute('innerHTML')
   parsedTotalServiceList = re.findall(r'\d+', html_content)
-  totalServicesString = int(parsedTotalServiceList[0] + parsedTotalServiceList[1])
 
-  return totalServicesString
+  totalServicesString = ''
 
-def competitionBySuggestionTerms(basic_search_terms, avoid_bot_detection=True, order_by='competition'):
-  suggestions = basic_search_terms['data']['suggestions']
+  for i in range(len(parsedTotalServiceList)):
+    totalServicesString += parsedTotalServiceList[i]
+
+  totalServiceInt = int(totalServicesString)
+
+  return totalServiceInt
+
+def getCompetitionRelationBySuggestions(suggestion_terms, type='basic', avoid_bot_detection=True, order_by='competition'):
+  if type == 'basic':
+    collectionName = 'suggestions'
+    valueFieldName = 'value'
+    orderFunction = orderCompetitionBasicRelation
+  elif type == 'advanced':
+    collectionName = 'related_search_terms'
+    valueFieldName = 'query'
+    orderFunction = orderCompetitionAdvancedRelation
+
+  suggestions = suggestion_terms['data'][collectionName]
 
   for suggestion in suggestions:
-    suggestion['competition'] = getCompetitionNumber(suggestion['value'])
-    suggestion['metadata'] = getSearchMetadata()
+    suggestion['competition'] = {
+      'total': getCompetitionNumber(suggestion[valueFieldName]),
+      'metadata': getSearchMetadata()
+    }
 
     if avoid_bot_detection is True:
       time.sleep(random.random())
+  
+  suggestions = orderFunction(suggestions, order_by)
 
+  return suggestions
+
+def orderCompetitionBasicRelation(competition_relation, order_by='competition'):
   if order_by == 'competition':
-    suggestions = sorted(suggestions, key = lambda i: i[order_by])
+    competition_relation = sorted(competition_relation, key = lambda i: i[order_by]['total'])
   else:
     raise Exception("Not implemented yet.")
   
-  return suggestions
+  return competition_relation
+
+def orderCompetitionAdvancedRelation(competition_relation, order_by='competition'):
+  if order_by == 'competition':
+    competition_relation = sorted(competition_relation, key = lambda i: i[order_by]['total'])
+  elif order_by == 'pos':
+    None
+  else:
+    raise Exception("Not implemented yet.")
   
-opts = ChromeOptions()
-opts.add_argument('--no-sandbox')
-opts.add_argument('--disable-dev-shm-usage')
-opts.headless = False
+  return competition_relation
 
-driver = Chrome(options=opts)
+def generateCompetitionRelation(term, type='basic', save_to_file=True):
+  if type == 'basic':
+    searchRecommendations = searchBasicRecommendations(term)
+  else:
+    searchRecommendations = searchAdvancedRecomendations(term)
 
-createDataFolder()
+  competitionRelation = getCompetitionRelationBySuggestions(
+    suggestion_terms=searchRecommendations, 
+    type=type, 
+    avoid_bot_detection=True, 
+    order_by='competition'
+  )
 
-term = 'php'
-basicSearch = searchBasicRecommendations(term)
-# advancedSearch = searchAdvancedRecomendations(term)
+  if save_to_file is True:
+    saveSearchToFile(f'{type}_search_{term}', searchRecommendations)
+    saveSearchToFile(f'{type}_competition_relation_{term}', competitionRelation)
 
-saveSearchToFile(f'basic_search_{term}', basicSearch)
-# saveSearchToFile('advanced_search', advancedSearch)
+def main():
+  createDataFolder()
 
-competitionList = competitionBySuggestionTerms(basic_search_terms=basicSearch, avoid_bot_detection=True)
-saveSearchToFile(f'competition_list_{term}', competitionList)
+  generateCompetitionRelation('php', 'basic')
+  driver.quit()
 
-
-driver.quit()
+main()
