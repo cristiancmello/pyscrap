@@ -100,18 +100,33 @@ def searchAdvancedRecomendations(term):
   
   return result
 
+def getCompetitionNumber(term):
+  driver.get(f'https://www.fiverr.com/search/gigs?query={term}&source=top-bar&search_in=everywhere&search-autocomplete-original-term={term}')
+  numberOfResultsElement = driver.find_element_by_xpath("//div[@class='number-of-results']")
 
-createDataFolder()
+  html_content = numberOfResultsElement.get_attribute('innerHTML')
+  parsedTotalServiceList = re.findall(r'\d+', html_content)
+  totalServicesString = int(parsedTotalServiceList[0] + parsedTotalServiceList[1])
 
-term = 'php'
+  return totalServicesString
 
-basicSearch = searchBasicRecommendations(term)
-advancedSearch = searchAdvancedRecomendations(term)
+def competitionBySuggestionTerms(basic_search_terms, avoid_bot_detection=True, order_by='competition'):
+  suggestions = basic_search_terms['data']['suggestions']
 
-saveSearchToFile('basic_search', basicSearch)
-saveSearchToFile('advanced_search', advancedSearch)
+  for suggestion in suggestions:
+    suggestion['competition'] = getCompetitionNumber(suggestion['value'])
+    suggestion['metadata'] = getSearchMetadata()
 
+    if avoid_bot_detection is True:
+      time.sleep(random.random())
 
+  if order_by == 'competition':
+    suggestions = sorted(suggestions, key = lambda i: i[order_by])
+  else:
+    raise Exception("Not implemented yet.")
+  
+  return suggestions
+  
 opts = ChromeOptions()
 opts.add_argument('--no-sandbox')
 opts.add_argument('--disable-dev-shm-usage')
@@ -119,14 +134,17 @@ opts.headless = False
 
 driver = Chrome(options=opts)
 
-driver.get(f'https://www.fiverr.com/search/gigs?query={term}&source=top-bar&search_in=everywhere&search-autocomplete-original-term={term}')
-numberOfResultsElement = driver.find_element_by_xpath("//div[@class='number-of-results']")
+createDataFolder()
 
-html_content = numberOfResultsElement.get_attribute('innerHTML')
-parsedTotalServiceList = re.findall(r'\d+', html_content)
-totalServicesString = parsedTotalServiceList[0] + parsedTotalServiceList[1]
+term = 'php'
+basicSearch = searchBasicRecommendations(term)
+# advancedSearch = searchAdvancedRecomendations(term)
 
-print(html_content)
-print(totalServicesString)
+saveSearchToFile(f'basic_search_{term}', basicSearch)
+# saveSearchToFile('advanced_search', advancedSearch)
+
+competitionList = competitionBySuggestionTerms(basic_search_terms=basicSearch, avoid_bot_detection=True)
+saveSearchToFile(f'competition_list_{term}', competitionList)
+
 
 driver.quit()
