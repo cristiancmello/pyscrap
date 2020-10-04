@@ -1,2 +1,5 @@
 geckodriver.log
 ranking.json
+chromedriver
+.envrc
+data
